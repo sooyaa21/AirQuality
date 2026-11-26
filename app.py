@@ -2,11 +2,15 @@
 from flask import Flask, render_template, request
 import joblib
 import pandas as pd
+from pathlib import Path
 
 app = Flask(__name__)
 
 # Memuat model Random Forest
-bundle = joblib.load('random_forest_co.pkl')
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / 'random_forest_co.pkl'
+
+bundle = joblib.load(MODEL_PATH)
 
 model = bundle['model']
 feature_names = bundle['feature_names']
@@ -31,7 +35,7 @@ feature_labels = {
     'DayOfWeek': 'Hari dalam Minggu'
 }
 
-# Penjelasan sederhana setiap fitur
+# Penjelasan setiap fitur
 feature_descriptions = {
     'PT08.S1(CO)': 'Nilai pembacaan sensor untuk mendeteksi karbon monoksida.',
     'C6H6(GT)': 'Perkiraan konsentrasi benzena di udara.',
@@ -50,7 +54,7 @@ feature_descriptions = {
     'DayOfWeek': 'Hari pengukuran, 0 untuk Senin sampai 6 untuk Minggu.'
 }
 
-# Feature importance dari model
+# Feature importance
 importance = sorted(
     zip(feature_names, model.feature_importances_),
     key=lambda item: item[1],
@@ -73,11 +77,9 @@ def home():
     error = None
     mode = 'demo'
 
-    # Keterangan hasil CO
     co_status = None
     co_message = None
 
-    # Nilai awal menggunakan median dataset
     input_values = {
         name: float(feature_medians[name])
         for name in feature_names
@@ -89,11 +91,9 @@ def home():
 
         try:
 
-            # MODE DEMO
             if mode == 'demo':
                 pass
 
-            # MODE MANUAL
             elif mode == 'manual':
 
                 for name in feature_names:
@@ -106,19 +106,16 @@ def home():
 
                     input_values[name] = float(value)
 
-            # Membuat DataFrame sesuai urutan fitur model
             input_df = pd.DataFrame(
                 [[input_values[name] for name in feature_names]],
                 columns=feature_names
             )
 
-            # Melakukan prediksi
             prediction = float(model.predict(input_df)[0])
 
             if prediction < 0:
                 prediction = 0.0
 
-            # Membandingkan hasil dengan baku mutu CO 1 jam
             if prediction <= 10:
                 co_status = 'Memenuhi Baku Mutu CO'
                 co_message = (
@@ -135,10 +132,10 @@ def home():
         except ValueError as e:
             error = str(e)
 
-        except Exception:
+        except Exception as e:
             error = 'Terjadi kesalahan saat melakukan prediksi.'
+            print('Prediction error:', repr(e))
 
-    # Menyiapkan seluruh input untuk HTML
     fields = []
 
     for name in feature_names:
